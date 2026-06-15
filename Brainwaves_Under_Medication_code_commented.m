@@ -161,8 +161,6 @@ metadata(rowsToDelete, :) = [];
 mkdir(fullfile(out_path, 'cleaned_data'))
 
 % Define the output HDF5 file for cleaned data.
-% TODO/SYNTAX CHECK: MATLAB function name should be fullfile, not fulfile.
-% TODO/SYNTAX CHECK: variable name should probably be out_path, not outpath.
 new_data = fullfile(out_path, 'cleaned_data', 'data_new.h5');
 
 % Save cleaned raw EEG features.
