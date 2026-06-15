@@ -19,6 +19,7 @@
 %       /sex        - numeric sex code, size: N_patients x 1
 %       /year       - date (year) of EEG recording, size: N_patients x 1
 %       /site       - recording/hospital site, numeric, size: N_patients x 1
+%       /drug_naive - OPTIONAL. binary labels indicating which patients do not take any psychotropic drugs, even beyond classes in data_meds, size: N_patients x 1
 %
 % Expected output:
 %   - Cleaned EEG and medication data saved as HDF5
@@ -85,6 +86,21 @@ age       = h5read(datafile, '/age');        % Patient age.
 sex       = h5read(datafile, '/sex');        % Numeric sex code.
 year      = h5read(datafile, '/year');       % Year of EEG recording.
 site      = h5read(datafile, '/site');       % Recording/hospital site.
+
+% Load drug-naive labels if available. Otherwise, derive them from the
+% medication matrix. Drug-naive participants are then defined as those who do
+% not take any medication group listed in data_meds.
+
+info = h5info(datafile);
+dataset_names = {info.Datasets.Name};
+
+if ismember('drug_naive', dataset_names)
+  % Read pre-computed drug-naive labels from the HDF5 file.
+  drug_naive = h5read(datafile, '/drug_naive'); 
+else
+  % Create drug-naive labels from medication data. Participants with no medication group assigned are considered drug-naive.
+  drug_naive = sum(data_meds, 2) == 0
+end
 
 %% ---------- Prepare metadata ----------
 % Centre the recording year around its mean. This improves interpretability
@@ -212,6 +228,7 @@ for s = 1:length(unique_sites)
     matched_indices_by_site_DN{s} = balance_groups_meds_DN( ...
         metadata(idx_set{s}, :), ...
         data_meds(idx_set{s}, :), ...
+        drug_naive, ...
         nmatch, ...
         nmatch2);
 end
