@@ -19,7 +19,6 @@
 %       /sex        - numeric sex code, size: N_patients x 1
 %       /year       - date (year) of EEG recording, size: N_patients x 1
 %       /site       - recording/hospital site, numeric, size: N_patients x 1
-%       /drug_naive - OPTIONAL. binary labels indicating which patients do not take any psychotropic drugs, even beyond classes in data_meds, size: N_patients x 1
 %
 % Expected output:
 %   - Cleaned EEG and medication data saved as HDF5
@@ -57,11 +56,14 @@ SD_threshold = 20;       % Outlier threshold in standard deviation units.
                          % are removed from further analysis.
 
 %% ---------- Define input and output paths ----------
+%Add path with helpers function
+addpath('...') %enter your path here
+
 % Folder containing the HDF5 input file.
-datapath = 'C:\Users\mszponar\Documents\kody itp\classification2\medicines\data_meds_REST_ASR_IPiN_i_Nowo\DANE_popr';
+datapath = '...'; %enter your datapath here
 
 % Folder where outputs will be saved.
-out_path = 'C:\Users\mszponar\Documents\kody itp\classification2\medicines\data_meds_REST_ASR_IPiN_i_Nowo\DANE_popr\out_folder_test';
+out_path = '...';
 
 % Name of the HDF5 file containing EEG features, medication labels, and metadata.
 datafname = 'datafile_name.h5';
@@ -86,21 +88,6 @@ age       = h5read(datafile, '/age');        % Patient age.
 sex       = h5read(datafile, '/sex');        % Numeric sex code.
 year      = h5read(datafile, '/year');       % Year of EEG recording.
 site      = h5read(datafile, '/site');       % Recording/hospital site.
-
-% Load drug-naive labels if available. Otherwise, derive them from the
-% medication matrix. Drug-naive participants are then defined as those who do
-% not take any medication group listed in data_meds.
-
-info = h5info(datafile);
-dataset_names = {info.Datasets.Name};
-
-if ismember('drug_naive', dataset_names)
-  % Read pre-computed drug-naive labels from the HDF5 file.
-  drug_naive = h5read(datafile, '/drug_naive'); 
-else
-  % Create drug-naive labels from medication data. Participants with no medication group assigned are considered drug-naive.
-  drug_naive = sum(data_meds, 2) == 0
-end
 
 %% ---------- Prepare metadata ----------
 % Centre the recording year around its mean. This improves interpretability
@@ -216,14 +203,14 @@ for s = 1:length(unique_sites)
     idx_set{s} = find(metadata(:, 5) == unique_sites(s));
    
     % Match participants within each site for the one-vs-rest comparison.
-    [matched_indices_by_site{s}, chi_stat_all] = balance_groups_meds( ...
+    [matched_indices_by_site{s}, ~] = balance_groups_meds( ...
         metadata(idx_set{s}, :), ...
         data_meds(idx_set{s}, :), ...
         nmatch, ...
         nmatch2);
     
     % Match participants within each site for the one-vs-drug-naive comparison.
-    [matched_indices_by_site_DN{s}, chi_stat_all_DN] = balance_groups_meds_DN( ...
+    [matched_indices_by_site_DN{s}, ~] = balance_groups_meds_DN( ...
         metadata(idx_set{s}, :), ...
         data_meds(idx_set{s}, :), ...
         drug_naive(idx_set{s}), ...
