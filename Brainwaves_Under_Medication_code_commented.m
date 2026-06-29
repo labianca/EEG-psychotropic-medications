@@ -162,6 +162,10 @@ h5write(new_data, "/zdata", zdata)
 h5create(new_data, "/data_meds", size(data_meds))
 h5write(new_data, "/data_meds", data_meds)
 
+% Save metadata
+h5create(new_data, "/metadata", size(metadata))
+h5write(new_data, "/metadata", metadata)
+
 % Save PCA decomposition and summary information.
 save(fullfile(out_path, 'cleaned_data', 'PCA_data.mat'), ...
     'PCA_coeff', 'PCA_score', 'latent', 'tsquared', 'explained', 'mu2', '-v7.3')
