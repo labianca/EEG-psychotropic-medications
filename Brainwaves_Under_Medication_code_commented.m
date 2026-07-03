@@ -37,6 +37,8 @@
 %% ---------- Set analysis parameters ----------
 % These parameters define the main analysis settings. The current values
 % correspond to the settings used in the publication analysis.
+analysis_type = 'PCA';   %'PCA' or 'single_features'
+
 exclude_multidrug = 0;   % Exclude patients taking drugs from more than one medication group?
                          % 0 = keep all patients; 1 = remove multi-drug patients.
 
@@ -166,6 +168,7 @@ h5write(new_data, "/data_meds", data_meds)
 h5create(new_data, "/metadata", size(metadata))
 h5write(new_data, "/metadata", metadata)
 
+
 % Save PCA decomposition and summary information.
 save(fullfile(out_path, 'cleaned_data', 'PCA_data.mat'), ...
     'PCA_coeff', 'PCA_score', 'latent', 'tsquared', 'explained', 'mu2', '-v7.3')
@@ -250,7 +253,11 @@ save(fullfile(out_path, 'matched_indices.mat'), ...
 %% ---------- Calculate effect sizes and model statistics ----------
 % Retain the minimum number of principal components required to explain at
 % least min_var_expl percent of the total variance.
-nPCA = find(cumsum(explained) > min_var_expl, 1);
+if analysis_type == 'PCA'
+    nPCA = find(cumsum(explained) > min_var_expl, 1);
+else
+    nPCA = size(zdata, 2);
+end
 
 % Run the downstream statistical analysis separately for each comparison
 % scheme: OvR and DN.
@@ -271,6 +278,8 @@ for comparison = ["OvR", "DN"]
     Cohens_d_all = {};   % Cohen's d effect sizes.
     P_corr = {};         % Holm-Bonferroni corrected p-values.
     LME_all = {};        % Linear mixed-effects model coefficients and diagnostics.
+    CI_low_all = {};     % 95% Confidence intervals for Hedges' g effect sizes.
+    CI_upp_all = {};     % 95% Confidence intervals for Hedges' g effect sizes.
 
     %% ---------- Loop over medication groups ----------
     for l = 1:size(data_meds, 2)
@@ -281,6 +290,8 @@ for comparison = ["OvR", "DN"]
         t_li = zeros(nPCA, nmatch);
         h_li = zeros(nPCA, nmatch);
         d_li = zeros(nPCA, nmatch);
+        h_li_upp = zeros(nPCA, nmatch);
+        h_li_low = zeros(nPCA, nmatch);
 
         %% ---------- Loop over repeated matched samples ----------
         for i = 1:nmatch
@@ -303,10 +314,15 @@ for comparison = ["OvR", "DN"]
             %% ---------- Loop over retained PCA components ----------
             for c = 1:nPCA
 
-                % Extract PCA component scores for the current matched groups.
+                % Extract PCA component scores or EEG features for the current matched groups.
                 % These scores are the dependent variable in the LME model.
-                feature = [PCA_score(matched_indices{l}{i}(:, 1), c); ...
-                           PCA_score(matched_indices{l}{i}(:, 2), c)];
+                if analysis_type == 'PCA'
+                    feature = [PCA_score(matched_indices{l}{i}(:, 1), c); ...
+                               PCA_score(matched_indices{l}{i}(:, 2), c)];
+                else
+                    feature = [zdata(matched_indices{l}{i}(:, 1), c); ...
+                               zdata(matched_indices{l}{i}(:, 2), c)];
+                end
 
                 % Build the model table.
                 tbl = table(feature, group, site, year_c);
@@ -342,12 +358,18 @@ for comparison = ["OvR", "DN"]
                 % Hedges' g: Cohen's d corrected for small-sample bias.
                 J = 1 - 3 ./ (4 * df - 1);
                 g = J .* d;
+                
+                % confidence intervals
+                g_low = J/sigma * lme.Coefficients.Lower(idx_g);
+                g_upp = J/sigma * lme.Coefficients.Upper(idx_g);
 
                 % Store effect sizes and test statistics.
                 d_li(c, i) = d;
                 h_li(c, i) = g;
                 p_li(c, i) = p_group;
                 t_li(c, i) = t_group;
+                h_li_upp(c, i) = g_upp;
+                h_li_low(c, i) = g_low;
 
                 % Save model coefficients and selected model-level statistics.
                 %This variable contains coefficients also for recording
@@ -377,17 +399,19 @@ for comparison = ["OvR", "DN"]
         Cohens_d_all{l} = d_li;
         Hedges_g_all{l} = h_li;
         T_all{l} = t_li;
+        CI_upp_all{l} = h_li_upp;
+        CI_low_all{l} = h_li_low;
 
     end
 
     %% ---------- Save statistical results ----------
     % Save p-values, corrected p-values, t-statistics, and effect sizes.
-    savename = strcat('Effects_medicines_PCA_', comparison, '.mat');
+    savename = strcat('Effects_medicines_', analysis_type, '_', comparison, '.mat');
     save(fullfile(out_path, savename), ...
-        'P_all', 'P_corr', 'T_all', 'Hedges_g_all', 'Cohens_d_all')
+        'P_all', 'P_corr', 'T_all', 'Hedges_g_all', 'Cohens_d_all', 'CI_low_all', 'CI_upp_all')
 
     % Save linear mixed-effects model coefficients and model diagnostics.
-    savename2 = strcat('Regression_model_medicines_PCA_', comparison, '.mat');
+    savename2 = strcat('Regression_model_medicines_', analysis_type, '_', comparison, '.mat');
     save(fullfile(out_path, savename2), 'LME_all');
 
 end
